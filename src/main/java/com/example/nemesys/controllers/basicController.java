@@ -9,8 +9,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api")
 public class basicController {
 
-    @GetMapping("/home")
-    public String sayHello() {
+    @GetMapping("/nemesys")
+    public String indexPage() {
         return "Hello, World!";
     }
+
+    @GetMapping("/nemesys/calculate")
+    public String indicesCalculate() {return "Hello from calculator";}
+
 }
