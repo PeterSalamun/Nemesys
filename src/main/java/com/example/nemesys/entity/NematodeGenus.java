@@ -13,5 +13,8 @@ public class NematodeGenus {
     @Id
     private Long id;
     private String genusName;
+    private String guild;
+    private Double weight;
+    private Integer cp;
 
 }
