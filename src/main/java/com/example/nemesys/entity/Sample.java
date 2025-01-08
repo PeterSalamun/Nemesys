@@ -6,12 +6,13 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Setter
 @Getter
-public class NematodeGenus {
+@Setter
+public class Sample {
 
     @Id
-    private Long id;
-    private String genusName;
+    private String siteId;
+    private Double abundance;
+    private String siteName;
 
 }
