@@ -16,5 +16,25 @@ public class NematodeGenus {
     private String guild;
     private Double weight;
     private Integer cp;
+    private Double GenavgMass;
+    private Double GenavgCPr;
+    private Double GenavgCRs;
+    private Double GenavgMFP;
+    private Double GenavgEFP;
+    private Double GenavgSFP;
+    private Double GenavgHFP;
+    private Double GenavgFFP;
+    private Double GenavgBFP;
+    private Double GenavgPFP;
+    private Double StderrMass;
+    private Double StderrCPr;
+    private Double StderrCRs;
+    private Double StderrMFP;
+    private Double StderrEFP;
+    private Double StderrSFP;
+    private Double StderrHFP;
+    private Double StderrFFP;
+    private Double StderrBFP;
+    private Double StderrPFP;
 
 }
