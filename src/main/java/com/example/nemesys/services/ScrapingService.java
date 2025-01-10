@@ -32,10 +32,10 @@ public class ScrapingService {
             List<String> nematodes = getResourceFileAsString();
             List<NematodeGenus> nematodeGenusList = new ArrayList<>();
 
-//            for (String nematode : nematodes) {
-            for( int i = 0; i < 3; i++) {
-//                String responseBody = fetchWebResponse(nematode);
-                String responseBody = fetchWebResponse(nematodes.get(i));
+            for (String nematode : nematodes) {
+//            for( int i = 0; i < 3; i++) {
+                String responseBody = fetchWebResponse(nematode);
+//                String responseBody = fetchWebResponse(nematodes.get(i));
                 nematodeGenusList.add(parseResponseBody(responseBody));
             }
 
