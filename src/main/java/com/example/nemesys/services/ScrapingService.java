@@ -2,9 +2,9 @@ package com.example.nemesys.services;
 
 
 import com.example.nemesys.entity.NematodeGenus;
+import com.opencsv.CSVWriter;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
@@ -32,10 +32,14 @@ public class ScrapingService {
             List<String> nematodes = getResourceFileAsString();
             List<NematodeGenus> nematodeGenusList = new ArrayList<>();
 
-            for (String nematode : nematodes) {
-                String responseBody = fetchWebResponse(nematode);
+//            for (String nematode : nematodes) {
+            for( int i = 0; i < 3; i++) {
+//                String responseBody = fetchWebResponse(nematode);
+                String responseBody = fetchWebResponse(nematodes.get(i));
                 nematodeGenusList.add(parseResponseBody(responseBody));
             }
+
+            writeNematodesToCsv(nematodeGenusList);
 
             return nematodeGenusList;
 
@@ -44,7 +48,7 @@ public class ScrapingService {
         }
     }
 
-    private NematodeGenus parseResponseBody(String responseBody){
+    private NematodeGenus parseResponseBody(String responseBody) {
         NematodeGenus nematodeGenus = new NematodeGenus();
         Document document = Jsoup.parse(responseBody);
 
@@ -55,7 +59,7 @@ public class ScrapingService {
         nematodeGenus.setCp(cpValue);
         Integer feeding = getIntegerFromDom(document.select("table#DetailsView2 tr:contains(feeding) td:nth-of-type(2) b").first().text());
         nematodeGenus.setFeeding(feeding);
-        Double basal =getDoubleFromDom(document.select("table#DetailsView2 tr:contains(Basal_Wtg) td:nth-of-type(2) b").first().text());
+        Double basal = getDoubleFromDom(document.select("table#DetailsView2 tr:contains(Basal_Wtg) td:nth-of-type(2) b").first().text());
         nematodeGenus.setBasal(basal);
         Double enrich = getDoubleFromDom(document.select("table#DetailsView2 tr:contains(Enrich_Wtg) td:nth-of-type(2) b").first().text());
         nematodeGenus.setEnrichment(enrich);
@@ -108,20 +112,19 @@ public class ScrapingService {
 
         return nematodeGenus;
     }
-    private Integer getIntegerFromDom(String element){
+
+    private Integer getIntegerFromDom(String element) {
         try {
             return Integer.valueOf(element);
         } catch (Exception e) {
-            System.out.println("Exception for converting dom element to integer.");
             return 0;
         }
     }
 
-    private Double getDoubleFromDom(String element){
+    private Double getDoubleFromDom(String element) {
         try {
             return Double.valueOf(element);
         } catch (Exception e) {
-            System.out.println("Exception for converting dom element to integer.");
             return 0.0;
         }
     }
@@ -137,7 +140,7 @@ public class ScrapingService {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             return response.body();
 
-        }catch (Exception e) {
+        } catch (Exception e) {
             throw new RuntimeException("Failed to fetch web response from " + url, e);
         }
     }
@@ -154,5 +157,77 @@ public class ScrapingService {
             throw new RuntimeException(e);
         }
     }
+
+    private void writeNematodesToCsv(List<NematodeGenus> nematodes) {
+        try (CSVWriter writer = new CSVWriter(new FileWriter("src/main/resources/data/nematodes.csv"))) {
+            String[] header = {
+                    "genusName",
+                    "feeding",
+                    "basal",
+                    "enrichment",
+                    "structure",
+                    "cp",
+                    "GenavgMass",
+                    "GenavgCPr",
+                    "GenavgCRs",
+                    "GenavgMFP",
+                    "GenavgEFP",
+                    "GenavgSFP",
+                    "GenavgHFP",
+                    "GenavgFFP",
+                    "GenavgBFP",
+                    "GenavgPFP",
+                    "StderrMass",
+                    "StderrCPr",
+                    "StderrCRs",
+                    "StderrMFP",
+                    "StderrEFP",
+                    "StderrSFP",
+                    "StderrHFP",
+                    "StderrFFP",
+                    "StderrBFP",
+                    "StderrPFP" };
+
+            writer.writeNext(header);
+
+            for (NematodeGenus nematode : nematodes) {
+                String[] data = {
+                        nematode.getGenusName(),
+                        String.valueOf(nematode.getFeeding()),
+                        String.valueOf(nematode.getBasal()),
+                        String.valueOf(nematode.getEnrichment()),
+                        String.valueOf(nematode.getStructure()),
+                        String.valueOf(nematode.getCp()),
+                        String.valueOf(nematode.getGenavgMass()),
+                        String.valueOf(nematode.getGenavgCPr()),
+                        String.valueOf(nematode.getGenavgCRs()),
+                        String.valueOf(nematode.getGenavgMFP()),
+                        String.valueOf(nematode.getGenavgEFP()),
+                        String.valueOf(nematode.getGenavgSFP()),
+                        String.valueOf(nematode.getGenavgHFP()),
+                        String.valueOf(nematode.getGenavgFFP()),
+                        String.valueOf(nematode.getGenavgBFP()),
+                        String.valueOf(nematode.getGenavgPFP()),
+                        String.valueOf(nematode.getStderrMass()),
+                        String.valueOf(nematode.getStderrCPr()),
+                        String.valueOf(nematode.getStderrCRs()),
+                        String.valueOf(nematode.getStderrMFP()),
+                        String.valueOf(nematode.getStderrEFP()),
+                        String.valueOf(nematode.getStderrSFP()),
+                        String.valueOf(nematode.getStderrHFP()),
+                        String.valueOf(nematode.getStderrFFP()),
+                        String.valueOf(nematode.getStderrBFP()),
+                        String.valueOf(nematode.getStderrPFP())
+                };
+                writer.writeNext(data);
+
+            }
+            System.out.println("CSV file created successfully at: /data/nematodes.csv");
+
+        } catch (IOException e) {
+            System.out.println("File /data/nematodes.csv does not exists/ cannot be opened.");
+        }
+    }
+
 
 }

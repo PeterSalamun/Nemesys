@@ -1,0 +1,4 @@
+"id","genusName","feeding","basal","enrichment","structure","cp","GenavgMass","GenavgCPr","GenavgCRs","GenavgMFP","GenavgEFP","GenavgSFP","GenavgHFP","GenavgFFP","GenavgBFP","GenavgPFP","StderrMass","StderrCPr","StderrCRs","StderrMFP","StderrEFP","StderrSFP","StderrHFP","StderrFFP","StderrBFP","StderrPFP"
+"null","Ablechroiulus","3","0.0","3.2","0.0","1","4.1445","0.4145","0.7019","1.1164","1.1164","0.0","0.0","0.0","1.1164","0.0","1.3093","0.1309","0.168","0.2985","0.2985","0.0","0.0","0.0","0.2985","0.0"
+"null","Acantholaimus","0","0.0","0.0","1.8","3","1.024","0.0341","0.2391","0.2732","0.0","0.2732","0.0","0.0","0.0","0.0","0.216","0.0072","0.0381","0.0452","0.0","0.0452","0.0","0.0","0.0","0.0"
+"null","Acephalodorylaimus","2","0.0","0.0","3.2","4","0.126","0.0031","0.0577","0.0609","0.0","0.0609","0.0","0.0609","0.0","0.0","0.0","0.0","0.0","0.0","0.0","0.0","0.0","0.0","0.0","0.0"
