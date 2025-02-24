@@ -1,40 +1,290 @@
 package com.example.nemesys.services;
 
 
+import com.example.nemesys.entity.NematodeGenus;
+import com.opencsv.CSVWriter;
+import org.hibernate.jdbc.Expectation;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 import org.springframework.stereotype.Service;
 
+import java.io.*;
 import java.net.URI;
-import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Map;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 @Service
 public class ScrapingService {
 
     private final HttpClient httpClient;
-    private final String url = "http://nemaplex.ucdavis.edu/Ecology/EcophysiologyParms/GenusParmsResult.aspx";
+    private final String resultUrl = "http://nemaplex.ucdavis.edu/Ecology/EcophysiologyParms/GenusParmsResult.aspx";
 
-    public ScrapingService(){
+    private final String parmsUrl = "http://nemaplex.ucdavis.edu/Ecology/EcophysiologyParms/GenusParmsQuery.aspx";
+
+    public ScrapingService() {
         this.httpClient = HttpClient.newHttpClient();
     }
 
-    public String fetchWebReponse(){
+    public void updateNematodesList() {
+        try {
+            List<String> nematodes = getResourceFileAsString();
+            List<String> nemaplexList = getNemaplexNematodesList(parmsUrl);
+
+            if(!nemaplexList.equals(nematodes) && nemaplexList != null){
+                recreateNematodeNamesList(nemaplexList);
+            }
+
+            List<NematodeGenus> nematodeGenusList = new ArrayList<>();
+
+            for (String nematode : nematodes) {
+                String responseBody = fetchWebResponse(nematode, resultUrl);
+                nematodeGenusList.add(parseNematodeResponseBody(responseBody));
+            }
+
+            writeNematodesToCsv(nematodeGenusList);
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to fetch web response from " + resultUrl, e);
+        }
+    }
+
+    private void recreateNematodeNamesList(List<String> nemaplexList) {
+        Path filePath = Paths.get("src/main/resources/data/Nematode.txt");
+        try {
+            Files.write(filePath, nemaplexList, StandardOpenOption.TRUNCATE_EXISTING);
+            System.out.println("The nematodes list was successfully overwritten with new entries.");
+        } catch (IOException e) {
+            System.out.println("Error while writing towards nematodes.txt");
+            e.printStackTrace();
+        }
+    }
+
+    private List<String> getNemaplexNematodesList(String url) {
+        String responseBody = fetchWebResponse(parmsUrl);
+        return parseQueryResponseBody(responseBody);
+    }
+    private List<String> parseQueryResponseBody(String responseBody) {
+        Document document = Jsoup.parse(responseBody);
+        Element selectElement = document.getElementById("DropDownList3");
+        List<String> nematodeValues = new ArrayList<>();
+
+        if (selectElement != null) {
+            Elements options = selectElement.getElementsByTag("option");
+
+            for(Element option: options){
+                if (option.val() != "") {
+                    nematodeValues.add(option.val());
+                }
+            }
+        }
+        return nematodeValues;
+    }
+    private NematodeGenus parseNematodeResponseBody(String responseBody) {
+        NematodeGenus nematodeGenus = new NematodeGenus();
+        Document document = Jsoup.parse(responseBody);
+
+        String genusName = document.select("table#DetailsView2 tr:contains(Genus) td:nth-of-type(2) b").first().text();
+        System.out.println("GENUS NAME: " + genusName);
+        nematodeGenus.setGenusName(genusName);
+        Integer cpValue = getIntegerFromDom(document.select("table#DetailsView2 tr:contains(cp_value) td:nth-of-type(2) b").first().text());
+        nematodeGenus.setCp(cpValue);
+        Integer feeding = getIntegerFromDom(document.select("table#DetailsView2 tr:contains(feeding) td:nth-of-type(2) b").first().text());
+        nematodeGenus.setFeeding(feeding);
+        Double basal = getDoubleFromDom(document.select("table#DetailsView2 tr:contains(Basal_Wtg) td:nth-of-type(2) b").first().text());
+        nematodeGenus.setBasal(basal);
+        Double enrich = getDoubleFromDom(document.select("table#DetailsView2 tr:contains(Enrich_Wtg) td:nth-of-type(2) b").first().text());
+        nematodeGenus.setEnrichment(enrich);
+        Double structure = getDoubleFromDom(document.select("table#DetailsView2 tr:contains(Structure_Wtg) td:nth-of-type(2) b").first().text());
+        nematodeGenus.setStructure(structure);
+
+        //  Functional Guild Average Parameters
+        Double GenavgMass = getDoubleFromDom(document.select("table#DetailsView1 tr:contains(GenavgMass) td:nth-of-type(2) b").first().text());
+        nematodeGenus.setGenavgMass(GenavgMass);
+        Double GenavgCPr = getDoubleFromDom(document.select("table#DetailsView1 tr:contains(GenavgCPr) td:nth-of-type(2) b").first().text());
+        nematodeGenus.setGenavgCPr(GenavgCPr);
+        Double GenavgCRs = getDoubleFromDom(document.select("table#DetailsView1 tr:contains(GenavgCRs) td:nth-of-type(2) b").first().text());
+        nematodeGenus.setGenavgCRs(GenavgCRs);
+        Double GenavgMFP = getDoubleFromDom(document.select("table#DetailsView1 tr:contains(GenavgMFP) td:nth-of-type(2) b").first().text());
+        nematodeGenus.setGenavgMFP(GenavgMFP);
+        Double GenavgEFP = getDoubleFromDom(document.select("table#DetailsView1 tr:contains(GenavgEFP) td:nth-of-type(2) b").first().text());
+        nematodeGenus.setGenavgEFP(GenavgEFP);
+        Double GenavgSFP = getDoubleFromDom(document.select("table#DetailsView1 tr:contains(GenavgSFP) td:nth-of-type(2) b").first().text());
+        nematodeGenus.setGenavgSFP(GenavgSFP);
+        Double GenavgHFP = getDoubleFromDom(document.select("table#DetailsView1 tr:contains(GenavgHFP) td:nth-of-type(2) b").first().text());
+        nematodeGenus.setGenavgHFP(GenavgHFP);
+        Double GenavgFFP = getDoubleFromDom(document.select("table#DetailsView1 tr:contains(GenavgFFP) td:nth-of-type(2) b").first().text());
+        nematodeGenus.setGenavgFFP(GenavgFFP);
+        Double GenavgBFP = getDoubleFromDom(document.select("table#DetailsView1 tr:contains(GenavgBFP) td:nth-of-type(2) b").first().text());
+        nematodeGenus.setGenavgBFP(GenavgBFP);
+        Double GenavgPFP = getDoubleFromDom(document.select("table#DetailsView1 tr:contains(GenavgPFP) td:nth-of-type(2) b").first().text());
+        nematodeGenus.setGenavgPFP(GenavgPFP);
+
+        //  Functional Guild Standard Errors
+        Double StderrMass = getDoubleFromDom(document.select("table#DetailsView3 tr:contains(StderrMass) td:nth-of-type(2) b").first().text());
+        nematodeGenus.setStderrMass(StderrMass);
+        Double StderrCPr = getDoubleFromDom(document.select("table#DetailsView3 tr:contains(StderrCPr) td:nth-of-type(2) b").first().text());
+        nematodeGenus.setStderrCPr(StderrCPr);
+        Double StderrCRs = getDoubleFromDom(document.select("table#DetailsView3 tr:contains(StderrCRs) td:nth-of-type(2) b").first().text());
+        nematodeGenus.setStderrCRs(StderrCRs);
+        Double StderrMFP = getDoubleFromDom(document.select("table#DetailsView3 tr:contains(StderrMFP) td:nth-of-type(2) b").first().text());
+        nematodeGenus.setStderrMFP(StderrMFP);
+        Double StderrEFP = getDoubleFromDom(document.select("table#DetailsView3 tr:contains(StderrEFP) td:nth-of-type(2) b").first().text());
+        nematodeGenus.setStderrEFP(StderrEFP);
+        Double StderrSFP = getDoubleFromDom(document.select("table#DetailsView3 tr:contains(StderrSFP) td:nth-of-type(2) b").first().text());
+        nematodeGenus.setStderrSFP(StderrSFP);
+        Double StderrHFP = getDoubleFromDom(document.select("table#DetailsView3 tr:contains(StderrHFP) td:nth-of-type(2) b").first().text());
+        nematodeGenus.setStderrHFP(StderrHFP);
+        Double StderrFFP = getDoubleFromDom(document.select("table#DetailsView3 tr:contains(StderrFFP) td:nth-of-type(2) b").first().text());
+        nematodeGenus.setStderrFFP(StderrFFP);
+        Double StderrBFP = getDoubleFromDom(document.select("table#DetailsView3 tr:contains(StderrBFP) td:nth-of-type(2) b").first().text());
+        nematodeGenus.setStderrBFP(StderrBFP);
+        Double StderrPFP = getDoubleFromDom(document.select("table#DetailsView3 tr:contains(StderrPFP) td:nth-of-type(2) b").first().text());
+        nematodeGenus.setStderrPFP(StderrPFP);
+
+        return nematodeGenus;
+    }
+
+    private Integer getIntegerFromDom(String element) {
+        try {
+            return Integer.valueOf(element);
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private Double getDoubleFromDom(String element) {
+        try {
+            return Double.valueOf(element);
+        } catch (Exception e) {
+            return 0.0;
+        }
+    }
+
+    private String fetchWebResponse(String url) {
         try {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(url))
                     .header("Content-Type", "application/x-www-form-urlencoded")
-                    .method("POST", HttpRequest.BodyPublishers.ofString("DropDownList3=Dorylaimus"))
+                    .method("POST", HttpRequest.BodyPublishers.noBody())
                     .build();
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-
             return response.body();
+
         } catch (Exception e) {
             throw new RuntimeException("Failed to fetch web response from " + url, e);
         }
     }
+    private String fetchWebResponse(String nematodeName, String url) {
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Content-Type", "application/x-www-form-urlencoded")
+                    .method("POST", HttpRequest.BodyPublishers.ofString(String.format("DropDownList3=%s", nematodeName)))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            return response.body();
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to fetch web response from " + url, e);
+        }
+    }
+
+    private List<String> getResourceFileAsString() {
+        try (InputStream inputStream = getClass().getResourceAsStream("/data/Nematode.txt")) {
+            String nematodes = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+            List<String> namesList = Arrays.stream(nematodes.split("\r\n")).toList();
+
+            return namesList;
+        } catch (NullPointerException e) {
+            throw new RuntimeException("NullPointerException", e);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void writeNematodesToCsv(List<NematodeGenus> nematodes) {
+        try (CSVWriter writer = new CSVWriter(new FileWriter("src/main/resources/data/nematodes.csv"))) {
+            String[] header = {
+                    "genusName",
+                    "feeding",
+                    "basal",
+                    "enrichment",
+                    "structure",
+                    "cp",
+                    "GenavgMass",
+                    "GenavgCPr",
+                    "GenavgCRs",
+                    "GenavgMFP",
+                    "GenavgEFP",
+                    "GenavgSFP",
+                    "GenavgHFP",
+                    "GenavgFFP",
+                    "GenavgBFP",
+                    "GenavgPFP",
+                    "StderrMass",
+                    "StderrCPr",
+                    "StderrCRs",
+                    "StderrMFP",
+                    "StderrEFP",
+                    "StderrSFP",
+                    "StderrHFP",
+                    "StderrFFP",
+                    "StderrBFP",
+                    "StderrPFP" };
+
+            writer.writeNext(header);
+
+            for (NematodeGenus nematode : nematodes) {
+                String[] data = {
+                        nematode.getGenusName(),
+                        String.valueOf(nematode.getFeeding()),
+                        String.valueOf(nematode.getBasal()),
+                        String.valueOf(nematode.getEnrichment()),
+                        String.valueOf(nematode.getStructure()),
+                        String.valueOf(nematode.getCp()),
+                        String.valueOf(nematode.getGenavgMass()),
+                        String.valueOf(nematode.getGenavgCPr()),
+                        String.valueOf(nematode.getGenavgCRs()),
+                        String.valueOf(nematode.getGenavgMFP()),
+                        String.valueOf(nematode.getGenavgEFP()),
+                        String.valueOf(nematode.getGenavgSFP()),
+                        String.valueOf(nematode.getGenavgHFP()),
+                        String.valueOf(nematode.getGenavgFFP()),
+                        String.valueOf(nematode.getGenavgBFP()),
+                        String.valueOf(nematode.getGenavgPFP()),
+                        String.valueOf(nematode.getStderrMass()),
+                        String.valueOf(nematode.getStderrCPr()),
+                        String.valueOf(nematode.getStderrCRs()),
+                        String.valueOf(nematode.getStderrMFP()),
+                        String.valueOf(nematode.getStderrEFP()),
+                        String.valueOf(nematode.getStderrSFP()),
+                        String.valueOf(nematode.getStderrHFP()),
+                        String.valueOf(nematode.getStderrFFP()),
+                        String.valueOf(nematode.getStderrBFP()),
+                        String.valueOf(nematode.getStderrPFP())
+                };
+                writer.writeNext(data);
+
+            }
+            System.out.println("CSV file created successfully at: /data/nematodes.csv");
+
+        } catch (IOException e) {
+            System.out.println("File /data/nematodes.csv does not exists/ cannot be opened.");
+        }
+    }
+
+
 }
