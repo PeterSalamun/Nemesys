@@ -3,8 +3,11 @@ package com.example.nemesys.services;
 
 import com.example.nemesys.entity.NematodeGenus;
 import com.opencsv.CSVWriter;
+import org.hibernate.jdbc.Expectation;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
@@ -13,6 +16,10 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -21,34 +28,69 @@ import java.util.List;
 public class ScrapingService {
 
     private final HttpClient httpClient;
-    private final String url = "http://nemaplex.ucdavis.edu/Ecology/EcophysiologyParms/GenusParmsResult.aspx";
+    private final String resultUrl = "http://nemaplex.ucdavis.edu/Ecology/EcophysiologyParms/GenusParmsResult.aspx";
+
+    private final String parmsUrl = "http://nemaplex.ucdavis.edu/Ecology/EcophysiologyParms/GenusParmsQuery.aspx";
 
     public ScrapingService() {
         this.httpClient = HttpClient.newHttpClient();
     }
 
-    public List<NematodeGenus> updateNematodesList() {
+    public void updateNematodesList() {
         try {
             List<String> nematodes = getResourceFileAsString();
+            List<String> nemaplexList = getNemaplexNematodesList(parmsUrl);
+
+            if(!nemaplexList.equals(nematodes) && nemaplexList != null){
+                recreateNematodeNamesList(nemaplexList);
+            }
+
             List<NematodeGenus> nematodeGenusList = new ArrayList<>();
 
             for (String nematode : nematodes) {
-//            for( int i = 0; i < 3; i++) {
-                String responseBody = fetchWebResponse(nematode);
-//                String responseBody = fetchWebResponse(nematodes.get(i));
-                nematodeGenusList.add(parseResponseBody(responseBody));
+                String responseBody = fetchWebResponse(nematode, resultUrl);
+                nematodeGenusList.add(parseNematodeResponseBody(responseBody));
             }
 
             writeNematodesToCsv(nematodeGenusList);
 
-            return nematodeGenusList;
-
         } catch (Exception e) {
-            throw new RuntimeException("Failed to fetch web response from " + url, e);
+            throw new RuntimeException("Failed to fetch web response from " + resultUrl, e);
         }
     }
 
-    private NematodeGenus parseResponseBody(String responseBody) {
+    private void recreateNematodeNamesList(List<String> nemaplexList) {
+        Path filePath = Paths.get("src/main/resources/data/Nematode.txt");
+        try {
+            Files.write(filePath, nemaplexList, StandardOpenOption.TRUNCATE_EXISTING);
+            System.out.println("The nematodes list was successfully overwritten with new entries.");
+        } catch (IOException e) {
+            System.out.println("Error while writing towards nematodes.txt");
+            e.printStackTrace();
+        }
+    }
+
+    private List<String> getNemaplexNematodesList(String url) {
+        String responseBody = fetchWebResponse(parmsUrl);
+        return parseQueryResponseBody(responseBody);
+    }
+    private List<String> parseQueryResponseBody(String responseBody) {
+        Document document = Jsoup.parse(responseBody);
+        Element selectElement = document.getElementById("DropDownList3");
+        List<String> nematodeValues = new ArrayList<>();
+
+        if (selectElement != null) {
+            Elements options = selectElement.getElementsByTag("option");
+
+            for(Element option: options){
+                if (option.val() != "") {
+                    nematodeValues.add(option.val());
+                }
+            }
+        }
+        return nematodeValues;
+    }
+    private NematodeGenus parseNematodeResponseBody(String responseBody) {
         NematodeGenus nematodeGenus = new NematodeGenus();
         Document document = Jsoup.parse(responseBody);
 
@@ -129,7 +171,22 @@ public class ScrapingService {
         }
     }
 
-    private String fetchWebResponse(String nematodeName) {
+    private String fetchWebResponse(String url) {
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Content-Type", "application/x-www-form-urlencoded")
+                    .method("POST", HttpRequest.BodyPublishers.noBody())
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            return response.body();
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to fetch web response from " + url, e);
+        }
+    }
+    private String fetchWebResponse(String nematodeName, String url) {
         try {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(url))
@@ -148,7 +205,7 @@ public class ScrapingService {
     private List<String> getResourceFileAsString() {
         try (InputStream inputStream = getClass().getResourceAsStream("/data/Nematode.txt")) {
             String nematodes = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
-            List<String> namesList = Arrays.stream(nematodes.split("\n")).toList();
+            List<String> namesList = Arrays.stream(nematodes.split("\r\n")).toList();
 
             return namesList;
         } catch (NullPointerException e) {

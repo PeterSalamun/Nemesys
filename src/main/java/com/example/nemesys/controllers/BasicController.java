@@ -29,8 +29,10 @@ public class BasicController {
     public String indicesCalculate() {return indicesCalculation.getIndxes();}
 
     @PostMapping("/nemesys/scrapping")
-    public List<NematodeGenus> scrappingNemaplex() {
-        return scrapingService.updateNematodesList();
+//    FOR testing purposes only - will be deleted for production
+    public String scrappingNemaplex() {
+        scrapingService.updateNematodesList();
+        return "Scrapping runs OK";
     }
 
 }
